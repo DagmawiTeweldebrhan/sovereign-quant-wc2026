@@ -101,6 +101,10 @@ export function fetchManagers() {
   return requestJson("/managers");
 }
 
+export function fetchHealth() {
+  return requestJson("/health");
+}
+
 export function login(email, password) {
   return requestJson("/auth/login", {
     method: "POST",

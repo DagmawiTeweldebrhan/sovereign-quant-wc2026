@@ -6,6 +6,7 @@ import FixtureMatrix from "./components/FixtureMatrix";
 import ReferenceDeskPanel from "./components/ReferenceDeskPanel";
 import SimulationVisualizer from "./components/SimulationVisualizer";
 import SystemLedgerPanel from "./components/SystemLedgerPanel";
+import SystemStatusStrip from "./components/SystemStatusStrip";
 import TacticalClashPanel from "./components/TacticalClashPanel";
 import {
   clearAuthToken,
@@ -203,6 +204,8 @@ export default function App() {
             </div>
           </div>
         </header>
+
+        <SystemStatusStrip session={session} />
 
         <section className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
           <FixtureMatrix
