@@ -5,10 +5,12 @@ Phase 1 of a modular World Cup forecasting system.
 ## What is included
 
 - FastAPI backend with seeded demo data
+- Signed authentication with demo accounts
 - SQLModel/PostgreSQL-ready schema
+- PostgreSQL row-level security policies
 - Redis-backed simulation cache
 - Celery worker for Monte Carlo queueing
-- React + Tailwind frontend shell
+- React + Tailwind frontend shell with a light dashboard
 
 ## Local run
 
@@ -37,6 +39,13 @@ docker compose up --build
 ```
 
 The Postgres container auto-runs `backend/sql/init.sql` on first launch to create the ledger schema and indexes.
+
+## Demo login
+
+- Admin: `admin@quant.local` / `WorldCup2026!`
+- Team viewers: `usa@quant.local`, `mex@quant.local`, `bra@quant.local`, `fra@quant.local` / `WorldCup2026!`
+
+Admin access can ingest results and manage venues. Viewer accounts are read-only and row-scoped.
 
 ## Phase workflow
 

@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     seed_demo_data: bool = True
     cors_origins: list[str] = ["*"]
+    auth_secret_key: str = Field(
+        default="dev-only-auth-secret-change-me",
+        alias="AUTH_SECRET_KEY",
+    )
+    access_token_ttl_hours: int = Field(default=12, alias="ACCESS_TOKEN_TTL_HOURS")
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-

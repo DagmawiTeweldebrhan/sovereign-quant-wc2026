@@ -21,6 +21,34 @@ class IngestMatchResultSchema(BaseModel):
     status: str = Field("COMPLETED", pattern="^(COMPLETED)$")
 
 
+class AuthRegisterSchema(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+    display_name: str = Field(..., min_length=2, max_length=100)
+    role: str = Field("viewer", pattern="^(admin|viewer)$")
+    team_iso: str | None = Field(default=None, min_length=3, max_length=3)
+
+
+class AuthLoginSchema(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class AuthenticatedUserSchema(BaseModel):
+    user_id: str
+    email: str
+    display_name: str
+    role: str
+    team_iso: str | None
+    is_active: bool
+
+
+class AuthSessionSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthenticatedUserSchema
+
+
 class TeamSummarySchema(BaseModel):
     team_iso: str
     name: str

@@ -11,8 +11,7 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from app.config import get_settings
-from app.database import engine
-from app.ml.dixon_coles import TeamStrength, score_probability_matrix
+from app.database import authorized_session
 from app.ml.tactical_engine import TacticalProfile, build_tactical_friction_features
 from app.models.schemas import (
     Fixture,
@@ -92,7 +91,7 @@ def _resolve_fixture_context(db: Session, fixture_id: str) -> tuple[Fixture, Ven
 
 @celery_app.task(name="queue_monte_carlo_simulation")
 def queue_monte_carlo_simulation(fixture_id: str) -> str:
-    with Session(engine) as db:
+    with authorized_session(role_override="system") as db:
         fixture, venue, home_team, away_team, home_manager, away_manager = _resolve_fixture_context(db, fixture_id)
         if home_team is None or away_team is None:
             raise ValueError("Fixture teams are missing")
@@ -119,11 +118,6 @@ def queue_monte_carlo_simulation(fixture_id: str) -> str:
         tau_d = float(np.clip((tactical_features["friction_press"] - tactical_features["friction_directness"]) * 0.1, -0.15, 0.15))
 
         results = run_monte_carlo_engine(home_lambda, away_lambda, tau_d, iterations=100_000)
-        score_distribution = score_probability_matrix(
-            TeamStrength(alpha=home_team.dixon_coles_alpha, beta=home_team.dixon_coles_beta),
-            TeamStrength(alpha=away_team.dixon_coles_alpha, beta=away_team.dixon_coles_beta),
-            d=tau_d,
-        )
         brier_score = float(
             (results["home_win"] - 0.5) ** 2 + (results["draw"] - 0.25) ** 2 + (results["away_win"] - 0.25) ** 2
         )

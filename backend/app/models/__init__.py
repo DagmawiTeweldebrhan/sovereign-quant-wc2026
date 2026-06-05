@@ -1,4 +1,5 @@
 from app.models.schemas import (
+    AuthUser,
     Fixture,
     Manager,
     PlayerMetric2026,
@@ -7,4 +8,3 @@ from app.models.schemas import (
     TravelLog,
     Venue,
 )
-

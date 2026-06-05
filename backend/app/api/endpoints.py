@@ -4,10 +4,10 @@ import asyncio
 import json
 
 import redis.asyncio as redis
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlmodel import Session
 
+from app.auth import get_current_user, require_admin_user
 from app.api.validation import (
     ManagerSummarySchema,
     FixtureSummarySchema,
@@ -18,11 +18,11 @@ from app.api.validation import (
     VenueCreateSchema,
 )
 from app.config import get_settings
-from app.database import engine
+from app.database import authorized_session
 from app.models.schemas import Fixture, Manager, SimulationOutput, Team, Venue
 from app.workers.tasks import queue_monte_carlo_simulation
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
 redis_client = redis.from_url(settings.redis_url, decode_responses=True)
 
@@ -55,7 +55,7 @@ def _fixture_summary_from_row(
 
 async def _fetch_fixtures() -> list[FixtureSummarySchema]:
     def query() -> list[FixtureSummarySchema]:
-        with Session(engine) as db:
+        with authorized_session() as db:
             fixtures = db.exec(select(Fixture).order_by(Fixture.kickoff_time)).all()
             summaries: list[FixtureSummarySchema] = []
             for fixture in fixtures:
@@ -72,7 +72,7 @@ async def _fetch_fixtures() -> list[FixtureSummarySchema]:
 
 async def _fetch_fixture(fixture_id: str) -> FixtureSummarySchema | None:
     def query() -> FixtureSummarySchema | None:
-        with Session(engine) as db:
+        with authorized_session() as db:
             fixture = db.get(Fixture, fixture_id)
             if fixture is None:
                 return None
@@ -94,7 +94,7 @@ async def get_fixtures() -> list[FixtureSummarySchema]:
 @router.get("/teams", response_model=list[TeamSummarySchema])
 async def get_teams() -> list[TeamSummarySchema]:
     def query() -> list[TeamSummarySchema]:
-        with Session(engine) as db:
+        with authorized_session() as db:
             return [TeamSummarySchema.model_validate(team.model_dump()) for team in db.exec(select(Team).order_by(Team.team_iso)).all()]
 
     return await asyncio.to_thread(query)
@@ -103,7 +103,7 @@ async def get_teams() -> list[TeamSummarySchema]:
 @router.get("/venues", response_model=list[VenueCreateSchema])
 async def get_venues() -> list[VenueCreateSchema]:
     def query() -> list[VenueCreateSchema]:
-        with Session(engine) as db:
+        with authorized_session() as db:
             return [
                 VenueCreateSchema.model_validate(venue.model_dump())
                 for venue in db.exec(select(Venue).order_by(Venue.city)).all()
@@ -115,7 +115,7 @@ async def get_venues() -> list[VenueCreateSchema]:
 @router.get("/managers", response_model=list[ManagerSummarySchema])
 async def get_managers() -> list[ManagerSummarySchema]:
     def query() -> list[ManagerSummarySchema]:
-        with Session(engine) as db:
+        with authorized_session() as db:
             return [
                 ManagerSummarySchema.model_validate(manager.model_dump())
                 for manager in db.exec(select(Manager).order_by(Manager.team_iso)).all()
@@ -134,8 +134,10 @@ async def get_fixture(fixture_id: str) -> FixtureSummarySchema:
 
 @router.post("/venues", response_model=VenueCreateSchema, status_code=status.HTTP_201_CREATED)
 async def create_venue(payload: VenueCreateSchema) -> VenueCreateSchema:
+    require_admin_user()
+
     def upsert() -> VenueCreateSchema:
-        with Session(engine) as db:
+        with authorized_session() as db:
             venue = db.get(Venue, payload.venue_id) or Venue.model_validate(payload.model_dump())
             for key, value in payload.model_dump().items():
                 setattr(venue, key, value)
@@ -148,8 +150,10 @@ async def create_venue(payload: VenueCreateSchema) -> VenueCreateSchema:
 
 @router.post("/match-results", response_model=FixtureSummarySchema)
 async def ingest_match_result(payload: IngestMatchResultSchema) -> FixtureSummarySchema:
+    require_admin_user()
+
     def persist() -> FixtureSummarySchema:
-        with Session(engine) as db:
+        with authorized_session() as db:
             fixture = db.get(Fixture, payload.fixture_id)
             if fixture is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
@@ -184,7 +188,7 @@ async def get_fixture_prediction(fixture_id: str) -> SimulationResponseSchema:
         return SimulationResponseSchema.model_validate(json.loads(cached_data))
 
     def query() -> SimulationResponseSchema | None:
-        with Session(engine) as session:
+        with authorized_session() as session:
             output = session.get(SimulationOutput, fixture_id)
             if output is None:
                 return None

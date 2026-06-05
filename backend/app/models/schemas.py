@@ -19,6 +19,25 @@ class Venue(SQLModel, table=True):
     historical_june_temp_c: float = Field(default=0.0)
 
 
+class AuthUser(SQLModel, table=True):
+    __tablename__ = "auth_users"
+
+    user_id: str = Field(primary_key=True, max_length=50)
+    email: str = Field(
+        sa_column=Column(String(255), nullable=False, unique=True, index=True),
+        max_length=255,
+    )
+    password_hash: str = Field(max_length=255)
+    display_name: str = Field(max_length=100)
+    role: str = Field(default="viewer", max_length=20)
+    team_iso: str | None = Field(default=None, foreign_key="teams.team_iso", max_length=3)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime(timezone=False)),
+    )
+
+
 class Team(SQLModel, table=True):
     __tablename__ = "teams"
 
@@ -109,4 +128,3 @@ class SimulationOutput(SQLModel, table=True):
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime(timezone=False)),
     )
-

@@ -7,7 +7,7 @@ function toFairOdds(probability) {
 export default function ArbitrageTerminal({ prediction }) {
   if (!prediction) {
     return (
-      <div className="border border-zinc-800 p-4 font-mono text-xs text-zinc-500 rounded-none">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
         No market edge computed yet.
       </div>
     );
@@ -21,8 +21,8 @@ export default function ArbitrageTerminal({ prediction }) {
   };
 
   return (
-    <div className="rounded-none border border-white bg-black p-4 font-mono text-white">
-      <div className="mb-3 border-b border-zinc-800 pb-2 text-xs font-bold uppercase tracking-[0.3em] text-zinc-500">
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+      <div className="mb-3 border-b border-slate-200 pb-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
         Arbitrage Terminal
       </div>
       <div className="grid gap-2 text-xs">
@@ -31,11 +31,11 @@ export default function ArbitrageTerminal({ prediction }) {
           const marketOdds = toFairOdds(syntheticMarket[key]);
           const edge = ((1 / Number(marketOdds)) - value) * 100;
           return (
-            <div key={key} className="grid grid-cols-4 border border-zinc-800 p-2">
-              <span className="uppercase text-zinc-400">{key.replace("_", " ")}</span>
-              <span className="text-right text-zinc-300">Fair {fairOdds}</span>
-              <span className="text-right text-zinc-300">Market {marketOdds}</span>
-              <span className={`text-right font-bold ${edge >= 0 ? "text-green-400" : "text-red-400"}`}>
+            <div key={key} className="grid grid-cols-4 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <span className="uppercase text-slate-500">{key.replace("_", " ")}</span>
+              <span className="text-right text-slate-600">Fair {fairOdds}</span>
+              <span className="text-right text-slate-600">Market {marketOdds}</span>
+              <span className={`text-right font-semibold ${edge >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                 Edge {edge.toFixed(2)}%
               </span>
             </div>
@@ -45,4 +45,3 @@ export default function ArbitrageTerminal({ prediction }) {
     </div>
   );
 }
-

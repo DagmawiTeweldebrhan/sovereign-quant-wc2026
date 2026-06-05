@@ -1,9 +1,26 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const AUTH_TOKEN_KEY = "sqwc_access_token";
+let authToken = localStorage.getItem(AUTH_TOKEN_KEY) ?? "";
+
+export function setAuthToken(token) {
+  authToken = token ?? "";
+  if (authToken) {
+    localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  }
+}
+
+export function clearAuthToken() {
+  setAuthToken("");
+}
 
 async function requestJson(path, options = {}) {
+  const authorizationHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authorizationHeaders,
       ...(options.headers ?? {}),
     },
     ...options,
@@ -35,6 +52,24 @@ export function triggerSimulation(fixtureId) {
 
 export function fetchFixturePrediction(fixtureId) {
   return requestJson(`/predictions/${fixtureId}`);
+}
+
+export function fetchCurrentUser() {
+  return requestJson("/auth/me");
+}
+
+export function login(email, password) {
+  return requestJson("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function registerUser(payload) {
+  return requestJson("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function waitForPrediction(fixtureId, { attempts = 12, intervalMs = 750 } = {}) {

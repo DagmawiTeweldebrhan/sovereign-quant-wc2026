@@ -6,10 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
+from app.auth import auth_router
 from app.api.endpoints import router
 from app.config import get_settings
-from app.database import engine, init_db
-from app.models.schemas import Fixture, Manager, PlayerMetric2026, Team, Venue
+from app.database import apply_postgres_row_level_security, authorized_session, engine, init_db
+from app.models.schemas import AuthUser, Fixture, Manager, PlayerMetric2026, Team, Venue
+from app.security import hash_password
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
@@ -20,11 +22,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth_router)
 app.include_router(router)
 
 
 def _seed_demo_data() -> None:
-    with Session(engine) as db:
+    with authorized_session(role_override="admin") as db:
         has_teams = db.exec(select(Team)).first() is not None
         if has_teams:
             return
@@ -180,14 +183,77 @@ def _seed_demo_data() -> None:
         db.commit()
 
 
+def _seed_demo_auth_users() -> None:
+    with Session(engine) as db:
+        if db.exec(select(AuthUser)).first() is not None:
+            return
+
+        demo_password = "WorldCup2026!"
+        demo_users = [
+            AuthUser(
+                user_id="user_admin",
+                email="admin@quant.local",
+                password_hash=hash_password(demo_password),
+                display_name="Tournament Admin",
+                role="admin",
+                team_iso=None,
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+            AuthUser(
+                user_id="user_usa",
+                email="usa@quant.local",
+                password_hash=hash_password(demo_password),
+                display_name="USA Analyst",
+                role="viewer",
+                team_iso="USA",
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+            AuthUser(
+                user_id="user_mex",
+                email="mex@quant.local",
+                password_hash=hash_password(demo_password),
+                display_name="Mexico Analyst",
+                role="viewer",
+                team_iso="MEX",
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+            AuthUser(
+                user_id="user_bra",
+                email="bra@quant.local",
+                password_hash=hash_password(demo_password),
+                display_name="Brazil Analyst",
+                role="viewer",
+                team_iso="BRA",
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+            AuthUser(
+                user_id="user_fra",
+                email="fra@quant.local",
+                password_hash=hash_password(demo_password),
+                display_name="France Analyst",
+                role="viewer",
+                team_iso="FRA",
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+        ]
+        db.add_all(demo_users)
+        db.commit()
+
+
 @app.on_event("startup")
 def startup_event() -> None:
     init_db()
+    apply_postgres_row_level_security()
     if settings.seed_demo_data:
         _seed_demo_data()
+        _seed_demo_auth_users()
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
-
