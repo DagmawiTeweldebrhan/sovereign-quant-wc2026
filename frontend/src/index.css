@@ -17,9 +17,7 @@ body,
 body {
   margin: 0;
   font-family: "Courier New", Courier, monospace;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 30%),
-    #000;
+  background: #000;
   color: #fff;
 }
 
@@ -31,4 +29,3 @@ body {
   background: #fff;
   color: #000;
 }
-
