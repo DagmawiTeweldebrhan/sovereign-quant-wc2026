@@ -33,7 +33,7 @@ export default function FixtureMatrix({ onSelectFixture, onSimulationQueued }) {
     setProcessingId(fixtureId);
     try {
       await triggerSimulation(fixtureId);
-      onSimulationQueued?.(fixtureId);
+      await onSimulationQueued?.(fixtureId);
     } finally {
       setProcessingId(null);
     }
@@ -85,4 +85,3 @@ export default function FixtureMatrix({ onSelectFixture, onSimulationQueued }) {
     </div>
   );
 }
-

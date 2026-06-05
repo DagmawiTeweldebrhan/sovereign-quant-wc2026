@@ -3,12 +3,13 @@ import ArbitrageTerminal from "./components/ArbitrageTerminal";
 import FixtureMatrix from "./components/FixtureMatrix";
 import SimulationVisualizer from "./components/SimulationVisualizer";
 import TacticalClashPanel from "./components/TacticalClashPanel";
-import { fetchFixturePrediction } from "./utils/api";
+import { fetchFixturePrediction, waitForPrediction } from "./utils/api";
 
 export default function App() {
   const [selectedFixture, setSelectedFixture] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [error, setError] = useState(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const managerA = selectedFixture?.home_manager ?? null;
   const managerB = selectedFixture?.away_manager ?? null;
@@ -45,14 +46,22 @@ export default function App() {
     }
   }, [selectedFixture]);
 
-  const handleSimulationQueued = (fixtureId) => {
+  const handleSimulationQueued = async (fixtureId) => {
     if (selectedFixture?.fixture_id !== fixtureId) {
       return;
     }
 
-    window.setTimeout(() => {
-      loadPrediction(fixtureId);
-    }, 1200);
+    try {
+      setIsPolling(true);
+      setError(null);
+      const data = await waitForPrediction(fixtureId);
+      setPrediction(data);
+    } catch (exception) {
+      setPrediction(null);
+      setError(exception.message);
+    } finally {
+      setIsPolling(false);
+    }
   };
 
   return (
@@ -87,7 +96,7 @@ export default function App() {
               </div>
               <div>
                 <div className="uppercase text-zinc-500">Current State</div>
-                <div className="font-bold text-white">{error ?? "Ready"}</div>
+                <div className="font-bold text-white">{isPolling ? "Polling simulation cache..." : error ?? "Ready"}</div>
               </div>
             </div>
           ) : (
@@ -98,4 +107,3 @@ export default function App() {
     </main>
   );
 }
-

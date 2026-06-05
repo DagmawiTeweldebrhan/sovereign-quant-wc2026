@@ -8,7 +8,13 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlmodel import Session
 
-from app.api.validation import FixtureSummarySchema, QueueResponseSchema, SimulationResponseSchema
+from app.api.validation import (
+    FixtureSummarySchema,
+    IngestMatchResultSchema,
+    QueueResponseSchema,
+    SimulationResponseSchema,
+    VenueCreateSchema,
+)
 from app.config import get_settings
 from app.database import engine
 from app.models.schemas import Fixture, Manager, SimulationOutput, Team, Venue
@@ -62,9 +68,78 @@ async def _fetch_fixtures() -> list[FixtureSummarySchema]:
     return await asyncio.to_thread(query)
 
 
+async def _fetch_fixture(fixture_id: str) -> FixtureSummarySchema | None:
+    def query() -> FixtureSummarySchema | None:
+        with Session(engine) as db:
+            fixture = db.get(Fixture, fixture_id)
+            if fixture is None:
+                return None
+            venue = db.get(Venue, fixture.venue_id) if fixture.venue_id else None
+            home_team = db.get(Team, fixture.home_team_iso) if fixture.home_team_iso else None
+            away_team = db.get(Team, fixture.away_team_iso) if fixture.away_team_iso else None
+            home_manager = db.exec(select(Manager).where(Manager.team_iso == fixture.home_team_iso)).first() if fixture.home_team_iso else None
+            away_manager = db.exec(select(Manager).where(Manager.team_iso == fixture.away_team_iso)).first() if fixture.away_team_iso else None
+            return _fixture_summary_from_row(fixture, venue, home_team, away_team, home_manager, away_manager)
+
+    return await asyncio.to_thread(query)
+
+
 @router.get("/fixtures", response_model=list[FixtureSummarySchema])
 async def get_fixtures() -> list[FixtureSummarySchema]:
     return await _fetch_fixtures()
+
+
+@router.get("/fixtures/{fixture_id}", response_model=FixtureSummarySchema)
+async def get_fixture(fixture_id: str) -> FixtureSummarySchema:
+    fixture = await _fetch_fixture(fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
+    return fixture
+
+
+@router.post("/venues", response_model=VenueCreateSchema, status_code=status.HTTP_201_CREATED)
+async def create_venue(payload: VenueCreateSchema) -> VenueCreateSchema:
+    def upsert() -> VenueCreateSchema:
+        with Session(engine) as db:
+            venue = db.get(Venue, payload.venue_id) or Venue.model_validate(payload.model_dump())
+            for key, value in payload.model_dump().items():
+                setattr(venue, key, value)
+            db.merge(venue)
+            db.commit()
+            return payload
+
+    return await asyncio.to_thread(upsert)
+
+
+@router.post("/match-results", response_model=FixtureSummarySchema)
+async def ingest_match_result(payload: IngestMatchResultSchema) -> FixtureSummarySchema:
+    def persist() -> FixtureSummarySchema:
+        with Session(engine) as db:
+            fixture = db.get(Fixture, payload.fixture_id)
+            if fixture is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
+
+            fixture.home_score = payload.home_score
+            fixture.away_score = payload.away_score
+            fixture.status = payload.status
+            db.add(fixture)
+            db.commit()
+            db.refresh(fixture)
+            simulation_output = db.get(SimulationOutput, payload.fixture_id)
+            if simulation_output is not None:
+                db.delete(simulation_output)
+                db.commit()
+
+            venue = db.get(Venue, fixture.venue_id) if fixture.venue_id else None
+            home_team = db.get(Team, fixture.home_team_iso) if fixture.home_team_iso else None
+            away_team = db.get(Team, fixture.away_team_iso) if fixture.away_team_iso else None
+            home_manager = db.exec(select(Manager).where(Manager.team_iso == fixture.home_team_iso)).first() if fixture.home_team_iso else None
+            away_manager = db.exec(select(Manager).where(Manager.team_iso == fixture.away_team_iso)).first() if fixture.away_team_iso else None
+            return _fixture_summary_from_row(fixture, venue, home_team, away_team, home_manager, away_manager)
+
+    summary = await asyncio.to_thread(persist)
+    await redis_client.delete(f"sim:{payload.fixture_id}")
+    return summary
 
 
 @router.get("/predictions/{fixture_id}", response_model=SimulationResponseSchema)
