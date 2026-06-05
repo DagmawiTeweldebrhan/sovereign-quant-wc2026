@@ -3,6 +3,7 @@ import AuthPanel from "./components/AuthPanel";
 import AdminControlPanel from "./components/AdminControlPanel";
 import ArbitrageTerminal from "./components/ArbitrageTerminal";
 import FixtureMatrix from "./components/FixtureMatrix";
+import ReferenceDeskPanel from "./components/ReferenceDeskPanel";
 import SimulationVisualizer from "./components/SimulationVisualizer";
 import SystemLedgerPanel from "./components/SystemLedgerPanel";
 import TacticalClashPanel from "./components/TacticalClashPanel";
@@ -218,6 +219,8 @@ export default function App() {
         </section>
 
         {session.role === "admin" ? <AdminControlPanel onCompleted={handleLedgerUpdated} /> : null}
+
+        <ReferenceDeskPanel />
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
           {selectedFixture ? (

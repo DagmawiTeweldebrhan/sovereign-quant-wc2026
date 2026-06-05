@@ -89,6 +89,18 @@ export function fetchCurrentUser() {
   return requestJson("/auth/me");
 }
 
+export function fetchTeams() {
+  return requestJson("/teams");
+}
+
+export function fetchVenues() {
+  return requestJson("/venues");
+}
+
+export function fetchManagers() {
+  return requestJson("/managers");
+}
+
 export function login(email, password) {
   return requestJson("/auth/login", {
     method: "POST",
