@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AuthPanel from "./components/AuthPanel";
+import AdminControlPanel from "./components/AdminControlPanel";
 import ArbitrageTerminal from "./components/ArbitrageTerminal";
 import FixtureMatrix from "./components/FixtureMatrix";
 import SimulationVisualizer from "./components/SimulationVisualizer";
@@ -8,6 +9,7 @@ import TacticalClashPanel from "./components/TacticalClashPanel";
 import {
   clearAuthToken,
   fetchCurrentUser,
+  fetchFixture,
   fetchFixturePrediction,
   login,
   registerUser,
@@ -25,6 +27,7 @@ export default function App() {
   const [prediction, setPrediction] = useState(null);
   const [error, setError] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [fixtureRefreshKey, setFixtureRefreshKey] = useState(0);
 
   const managerA = selectedFixture?.home_manager ?? null;
   const managerB = selectedFixture?.away_manager ?? null;
@@ -134,6 +137,15 @@ export default function App() {
     }
   };
 
+  const handleLedgerUpdated = async () => {
+    setFixtureRefreshKey((current) => current + 1);
+    if (selectedFixture?.fixture_id) {
+      const updatedFixture = await fetchFixture(selectedFixture.fixture_id);
+      setSelectedFixture(updatedFixture);
+      setPrediction(null);
+    }
+  };
+
   if (authLoading) {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 md:px-8">
@@ -192,7 +204,11 @@ export default function App() {
         </header>
 
         <section className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
-          <FixtureMatrix onSelectFixture={setSelectedFixture} onSimulationQueued={handleSimulationQueued} />
+          <FixtureMatrix
+            key={fixtureRefreshKey}
+            onSelectFixture={setSelectedFixture}
+            onSimulationQueued={handleSimulationQueued}
+          />
           <div className="grid gap-4">
             <SimulationVisualizer prediction={prediction} />
             <TacticalClashPanel managerA={managerA} managerB={managerB} frictionIndex={frictionIndex} />
@@ -200,6 +216,8 @@ export default function App() {
             <ArbitrageTerminal prediction={prediction} />
           </div>
         </section>
+
+        {session.role === "admin" ? <AdminControlPanel onCompleted={handleLedgerUpdated} /> : null}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
           {selectedFixture ? (

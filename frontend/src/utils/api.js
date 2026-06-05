@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const AUTH_TOKEN_KEY = "sqwc_access_token";
 let authToken = localStorage.getItem(AUTH_TOKEN_KEY) ?? "";
 
@@ -15,25 +15,52 @@ export function clearAuthToken() {
   setAuthToken("");
 }
 
+function buildCandidateUrls(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const candidates = [API_BASE_URL, "/api", "http://localhost:8000", "http://127.0.0.1:8000"];
+  const uniqueCandidates = [...new Set(candidates.filter(Boolean))];
+  return uniqueCandidates.map((baseUrl) => {
+    const trimmedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    return `${trimmedBase}${normalizedPath}`;
+  });
+}
+
 async function requestJson(path, options = {}) {
   const authorizationHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const requestInit = {
     headers: {
       "Content-Type": "application/json",
       ...authorizationHeaders,
       ...(options.headers ?? {}),
     },
     ...options,
-  });
+  };
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const error = new Error(payload.detail ?? `Request failed: ${response.status}`);
-    error.status = response.status;
-    throw error;
+  const urls = buildCandidateUrls(path);
+  let networkError = null;
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, requestInit);
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const error = new Error(payload.detail ?? `Request failed: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error && error.message === "Failed to fetch") {
+        networkError = error;
+        continue;
+      }
+      throw error;
+    }
   }
 
-  return response.json();
+  throw networkError ?? new Error(`Unable to reach API at ${urls.join(", ")}`);
 }
 
 function sleep(ms) {
@@ -42,6 +69,10 @@ function sleep(ms) {
 
 export function fetchUpcomingFixtures() {
   return requestJson("/fixtures");
+}
+
+export function fetchFixture(fixtureId) {
+  return requestJson(`/fixtures/${fixtureId}`);
 }
 
 export function triggerSimulation(fixtureId) {
@@ -67,6 +98,20 @@ export function login(email, password) {
 
 export function registerUser(payload) {
   return requestJson("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createVenue(payload) {
+  return requestJson("/venues", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function ingestMatchResult(payload) {
+  return requestJson("/match-results", {
     method: "POST",
     body: JSON.stringify(payload),
   });

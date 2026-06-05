@@ -69,6 +69,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    environment:
+      VITE_API_PROXY_TARGET: http://api_gateway:8000
     depends_on:
       - api_gateway
     networks:
