@@ -52,7 +52,10 @@ async function requestJson(path, options = {}) {
 
       return response.json();
     } catch (error) {
-      if (error instanceof Error && error.message === "Failed to fetch") {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      const isNetworkError =
+        error instanceof TypeError || message.includes("failed to fetch") || message.includes("networkerror");
+      if (isNetworkError) {
         networkError = error;
         continue;
       }
