@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: predictor_postgres_ledger
+    restart: always
+    environment:
+      POSTGRES_DB: worldcup_quant_2026
+      POSTGRES_USER: quant_operator
+      POSTGRES_PASSWORD: structural_password_secure_992
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_ledger_data:/var/lib/postgresql/data
+    networks:
+      - core_quant_network
+
+  cache_broker:
+    image: redis:7-alpine
+    container_name: predictor_redis_broker
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - core_quant_network
+
+  api_gateway:
+    build: ./backend
+    container_name: predictor_fastapi_server
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://quant_operator:structural_password_secure_992@database:5432/worldcup_quant_2026
+      REDIS_URL: redis://cache_broker:6379/0
+    depends_on:
+      - database
+      - cache_broker
+    networks:
+      - core_quant_network
+
+  simulation_worker:
+    build: ./backend
+    container_name: predictor_celery_worker
+    restart: always
+    command: celery -A app.workers.tasks.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql://quant_operator:structural_password_secure_992@database:5432/worldcup_quant_2026
+      REDIS_URL: redis://cache_broker:6379/0
+    depends_on:
+      - cache_broker
+      - database
+    networks:
+      - core_quant_network
+
+  web_client:
+    build: ./frontend
+    container_name: predictor_react_client
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api_gateway
+    networks:
+      - core_quant_network
+
+volumes:
+  postgres_ledger_data:
+
+networks:
+  core_quant_network:
+    driver: bridge
+
