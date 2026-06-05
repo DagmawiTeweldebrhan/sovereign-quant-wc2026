@@ -3,6 +3,7 @@ import ArbitrageTerminal from "./components/ArbitrageTerminal";
 import FixtureMatrix from "./components/FixtureMatrix";
 import SimulationVisualizer from "./components/SimulationVisualizer";
 import TacticalClashPanel from "./components/TacticalClashPanel";
+import SystemLedgerPanel from "./components/SystemLedgerPanel";
 import { fetchFixturePrediction, waitForPrediction } from "./utils/api";
 
 export default function App() {
@@ -80,6 +81,7 @@ export default function App() {
           <div className="grid gap-4">
             <SimulationVisualizer prediction={prediction} />
             <TacticalClashPanel managerA={managerA} managerB={managerB} frictionIndex={frictionIndex} />
+            <SystemLedgerPanel fixture={selectedFixture} />
             <ArbitrageTerminal prediction={prediction} />
           </div>
         </section>

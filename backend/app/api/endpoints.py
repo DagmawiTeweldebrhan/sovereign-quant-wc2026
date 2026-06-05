@@ -9,10 +9,12 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from app.api.validation import (
+    ManagerSummarySchema,
     FixtureSummarySchema,
     IngestMatchResultSchema,
     QueueResponseSchema,
     SimulationResponseSchema,
+    TeamSummarySchema,
     VenueCreateSchema,
 )
 from app.config import get_settings
@@ -87,6 +89,39 @@ async def _fetch_fixture(fixture_id: str) -> FixtureSummarySchema | None:
 @router.get("/fixtures", response_model=list[FixtureSummarySchema])
 async def get_fixtures() -> list[FixtureSummarySchema]:
     return await _fetch_fixtures()
+
+
+@router.get("/teams", response_model=list[TeamSummarySchema])
+async def get_teams() -> list[TeamSummarySchema]:
+    def query() -> list[TeamSummarySchema]:
+        with Session(engine) as db:
+            return [TeamSummarySchema.model_validate(team.model_dump()) for team in db.exec(select(Team).order_by(Team.team_iso)).all()]
+
+    return await asyncio.to_thread(query)
+
+
+@router.get("/venues", response_model=list[VenueCreateSchema])
+async def get_venues() -> list[VenueCreateSchema]:
+    def query() -> list[VenueCreateSchema]:
+        with Session(engine) as db:
+            return [
+                VenueCreateSchema.model_validate(venue.model_dump())
+                for venue in db.exec(select(Venue).order_by(Venue.city)).all()
+            ]
+
+    return await asyncio.to_thread(query)
+
+
+@router.get("/managers", response_model=list[ManagerSummarySchema])
+async def get_managers() -> list[ManagerSummarySchema]:
+    def query() -> list[ManagerSummarySchema]:
+        with Session(engine) as db:
+            return [
+                ManagerSummarySchema.model_validate(manager.model_dump())
+                for manager in db.exec(select(Manager).order_by(Manager.team_iso)).all()
+            ]
+
+    return await asyncio.to_thread(query)
 
 
 @router.get("/fixtures/{fixture_id}", response_model=FixtureSummarySchema)
