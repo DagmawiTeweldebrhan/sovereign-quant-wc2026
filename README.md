@@ -32,6 +32,8 @@ npm install
 npm run start
 ```
 
+The frontend dev server uses `/api` by default and proxies requests to the backend. If you run it in Docker, the proxy target is already wired to the API service.
+
 ### Docker
 
 ```bash
@@ -46,6 +48,8 @@ The Postgres container auto-runs `backend/sql/init.sql` on first launch to creat
 - Team viewers: `usa@quant.local`, `mex@quant.local`, `bra@quant.local`, `fra@quant.local` / `WorldCup2026!`
 
 Admin access can ingest results and manage venues. Viewer accounts are read-only and row-scoped.
+
+For a custom local setup, copy `frontend/.env.example` to `frontend/.env` and adjust the proxy target if your backend runs somewhere else.
 
 ## Phase workflow
 
