@@ -36,7 +36,8 @@ npm run start
 docker compose up --build
 ```
 
+The Postgres container auto-runs `backend/sql/init.sql` on first launch to create the ledger schema and indexes.
+
 ## Phase workflow
 
 This repo is intended to be shipped in small working increments. Each phase should be committed with a focused message, then pushed before the next feature slice lands.
-

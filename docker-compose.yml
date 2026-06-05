@@ -13,6 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_ledger_data:/var/lib/postgresql/data
+      - ./backend/sql:/docker-entrypoint-initdb.d
     networks:
       - core_quant_network
 
@@ -79,4 +80,3 @@ volumes:
 networks:
   core_quant_network:
     driver: bridge
-
