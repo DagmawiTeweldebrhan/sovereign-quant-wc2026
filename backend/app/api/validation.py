@@ -64,10 +64,10 @@ class SimulationResponseSchema(BaseModel):
     most_probable_scoreline: str
     score_matrix_distribution: Dict[str, float]
     computed_at: datetime
+    calculated_brier_score: float | None = None
 
 
 class QueueResponseSchema(BaseModel):
     status: str
     task_id: str
     message: str
-

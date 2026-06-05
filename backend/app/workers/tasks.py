@@ -151,6 +151,7 @@ def queue_monte_carlo_simulation(fixture_id: str) -> str:
             "most_probable_scoreline": str(results["most_probable_scoreline"]),
             "score_matrix_distribution": dict(results["distribution"]),
             "computed_at": simulation.last_computed.isoformat(),
+            "calculated_brier_score": brier_score,
         }
         redis_client.setex(f"sim:{fixture_id}", 86400, json.dumps(payload))
         return f"Simulation complete for fixture {fixture_id}"

@@ -164,6 +164,7 @@ async def get_fixture_prediction(fixture_id: str) -> SimulationResponseSchema:
                 most_probable_scoreline=output.most_probable_scoreline,
                 score_matrix_distribution=output.simulated_score_distribution,
                 computed_at=output.last_computed,
+                calculated_brier_score=output.calculated_brier_score,
             )
 
     prediction = await asyncio.to_thread(query)
