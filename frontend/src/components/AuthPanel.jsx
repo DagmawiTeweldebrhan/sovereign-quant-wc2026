@@ -4,7 +4,7 @@ export default function AuthPanel({ mode, onModeChange, onSubmit, loading, error
   const [form, setForm] = useState({
     email: "admin@quant.local",
     password: "WorldCup2026!",
-    display_name: "Tournament Admin",
+    name: "Tournament Admin",
     team_iso: "",
   });
 
@@ -17,9 +17,9 @@ export default function AuthPanel({ mode, onModeChange, onSubmit, loading, error
     onSubmit({
       email: form.email,
       password: form.password,
-      display_name: form.display_name,
+      name: form.name,
       role: "viewer",
-      team_iso: form.team_iso.trim() ? form.team_iso.trim().toUpperCase() : null,
+      team_iso: form.team_iso.trim() ? form.team_iso.trim().toUpperCase() : "N/A",
     });
   };
 
@@ -38,11 +38,11 @@ export default function AuthPanel({ mode, onModeChange, onSubmit, loading, error
           {mode === "register" && (
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium text-slate-700">
-                Display name
+                Name
                 <input
                   className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white"
-                  value={form.display_name}
-                  onChange={(event) => updateField("display_name", event.target.value)}
+                  value={form.name}
+                  onChange={(event) => updateField("name", event.target.value)}
                   placeholder="Tournament Analyst"
                 />
               </label>

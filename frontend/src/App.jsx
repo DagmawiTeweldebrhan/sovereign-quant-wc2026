@@ -192,7 +192,7 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                 <div className="text-xs uppercase tracking-[0.25em] text-slate-500">Signed in as</div>
-                <div className="font-semibold text-slate-950">{session.display_name}</div>
+                <div className="font-semibold text-slate-950">{session.name}</div>
                 <div className="text-xs text-slate-500">{session.email}</div>
               </div>
               <button

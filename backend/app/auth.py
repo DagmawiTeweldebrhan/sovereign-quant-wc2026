@@ -1,144 +1,141 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
-from sqlmodel import Session
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.api.validation import (
-    AuthLoginSchema,
-    AuthRegisterSchema,
-    AuthSessionSchema,
-    AuthenticatedUserSchema,
+from app.database import get_db
+from app.security import (
+    get_current_user,
+    get_current_user_optional,
+    get_user_from_registry,
+    issue_access_token,
+    register_user_in_registry,
+    verify_registry_password,
 )
-from app.config import get_settings
-from app.context import current_user_context
-from app.database import engine
-from app.models.schemas import AuthUser
-from app.security import create_access_token, decode_access_token, hash_password, verify_password
 
-settings = get_settings()
-auth_router = APIRouter(prefix="/auth", tags=["auth"])
-security_scheme = HTTPBearer(auto_error=False)
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _to_authenticated_user(user: AuthUser) -> AuthenticatedUserSchema:
-    return AuthenticatedUserSchema(
-        user_id=user.user_id,
-        email=user.email,
-        display_name=user.display_name,
-        role=user.role,
-        team_iso=user.team_iso,
-        is_active=user.is_active,
+class AuthLoginSchema(BaseModel):
+    email: str | None = Field(default=None, min_length=3)
+    username: str | None = Field(default=None, min_length=3)
+    identifier: str | None = Field(default=None, min_length=3)
+    password: str = Field(..., min_length=1)
+
+    def resolved_identity(self) -> str:
+        for candidate in (self.email, self.username, self.identifier):
+            if candidate and candidate.strip():
+                return candidate.strip()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email or username is required.",
+        )
+
+
+class AuthRegisterSchema(BaseModel):
+    email: str = Field(..., min_length=3)
+    name: str = Field(..., min_length=2)
+    password: str = Field(..., min_length=8)
+    role: str = Field(default="viewer", pattern="^(admin|viewer)$")
+    team_iso: str = Field(default="N/A", min_length=3, max_length=3)
+
+
+class AuthUserSchema(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    role: str
+    team_iso: str
+
+
+class AuthSessionSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthUserSchema
+
+
+def _build_session(user: Dict[str, Any]) -> AuthSessionSchema:
+    canonical = {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "team_iso": user.get("team_iso", "N/A"),
+    }
+    return AuthSessionSchema(
+        access_token=issue_access_token(canonical),
+        user=AuthUserSchema(**canonical),
     )
 
 
-def _get_user_by_email(session: Session, email: str) -> AuthUser | None:
-    statement = select(AuthUser).where(AuthUser.email == email)
-    return session.exec(statement).first()
-
-
-def _get_user_by_id(session: Session, user_id: str) -> AuthUser | None:
-    return session.get(AuthUser, user_id)
-
-
-def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security_scheme)],
-) -> AuthenticatedUserSchema:
-    if credentials is None or not credentials.credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+@router.post("/register", response_model=AuthSessionSchema)
+async def register(payload: AuthRegisterSchema, db: Session = Depends(get_db)) -> AuthSessionSchema:
+    del db
     try:
-        claims = decode_access_token(credentials.credentials)
-    except ValueError as error:
+        existing = get_user_from_registry(payload.email)
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Account already exists.",
+            )
+        created = register_user_in_registry(
+            email=payload.email,
+            name=payload.name,
+            password=payload.password,
+            role=payload.role,
+            team_iso=payload.team_iso,
+        )
+        return _build_session(created)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from error
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        ) from exc
 
-    with Session(engine) as session:
-        user = _get_user_by_id(session, claims.user_id)
-        if user is None or not user.is_active:
+
+@router.post("/login", response_model=AuthSessionSchema)
+async def login(payload: AuthLoginSchema, db: Session = Depends(get_db)) -> AuthSessionSchema:
+    del db
+    try:
+        identity = payload.resolved_identity().lower()
+        user = get_user_from_registry(identity)
+        if user is None and "@" not in identity:
+            user = get_user_from_registry(f"{identity}@quant.local")
+
+        if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is unavailable",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail="Invalid email or password.",
             )
-        authenticated_user = _to_authenticated_user(user)
-        current_user_context.set(authenticated_user)
-        return authenticated_user
+
+        if not verify_registry_password(user, payload.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
+
+        return _build_session(user)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        ) from exc
 
 
-def require_admin_user() -> AuthenticatedUserSchema:
-    user = current_user_context.get()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
-    if user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return user
+@router.get("/me", response_model=AuthUserSchema)
+async def me(current_user: Dict[str, Any] = Depends(get_current_user)) -> AuthUserSchema:
+    return AuthUserSchema(**current_user)
 
 
-@auth_router.post("/register", response_model=AuthSessionSchema, status_code=status.HTTP_201_CREATED)
-def register_user(payload: AuthRegisterSchema) -> AuthSessionSchema:
-    with Session(engine) as session:
-        if _get_user_by_email(session, payload.email) is not None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-
-        user = AuthUser(
-            user_id=f"user_{payload.email.lower().replace('@', '_').replace('.', '_')}",
-            email=payload.email.lower(),
-            password_hash=hash_password(payload.password),
-            display_name=payload.display_name,
-            role="viewer",
-            team_iso=payload.team_iso,
-            is_active=True,
-            created_at=datetime.utcnow(),
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-
-        return AuthSessionSchema(
-            access_token=create_access_token(
-                user_id=user.user_id,
-                email=user.email,
-                display_name=user.display_name,
-                role=user.role,
-                team_iso=user.team_iso,
-            ),
-            user=_to_authenticated_user(user),
-        )
-
-
-@auth_router.post("/login", response_model=AuthSessionSchema)
-def login_user(payload: AuthLoginSchema) -> AuthSessionSchema:
-    with Session(engine) as session:
-        user = _get_user_by_email(session, payload.email.lower())
-        if user is None or not verify_password(payload.password, user.password_hash):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-        if not user.is_active:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
-
-        return AuthSessionSchema(
-            access_token=create_access_token(
-                user_id=user.user_id,
-                email=user.email,
-                display_name=user.display_name,
-                role=user.role,
-                team_iso=user.team_iso,
-            ),
-            user=_to_authenticated_user(user),
-        )
-
-
-@auth_router.get("/me", response_model=AuthenticatedUserSchema)
-def read_current_user(user: Annotated[AuthenticatedUserSchema, Depends(get_current_user)]) -> AuthenticatedUserSchema:
-    return user
+@router.get("/session", response_model=AuthUserSchema | None)
+async def session(current_user: Dict[str, Any] | None = Depends(get_current_user_optional)) -> AuthUserSchema | None:
+    if current_user is None:
+        return None
+    return AuthUserSchema(**current_user)
